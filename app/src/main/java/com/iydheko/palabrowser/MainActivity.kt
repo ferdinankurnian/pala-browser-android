@@ -67,6 +67,9 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import com.iydheko.palabrowser.ui.theme.PalaBrowserTheme
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -75,7 +78,15 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
-
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,7 +106,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Preview(showBackground = true)
 @Composable
 fun WebViewScreen(paddingValues: PaddingValues = PaddingValues(0.dp)) {
     var url by remember { mutableStateOf("https://google.com") }
@@ -106,40 +116,47 @@ fun WebViewScreen(paddingValues: PaddingValues = PaddingValues(0.dp)) {
     var pageTitle by remember { mutableStateOf("Pala Browser") }
     var favicon by remember { mutableStateOf<Bitmap?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFE8B86D)).padding(paddingValues)) {
-        BrowserTopBar(title = pageTitle, favicon = favicon)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().background(Color(0xFFE8B86D)).padding(paddingValues)) {
+            BrowserTopBar(title = pageTitle, favicon = favicon)
 
-        BrowserWebView(
-                url = url,
-                onWebViewCreated = { webView = it },
-                onUrlChanged = {
-                    currentUrl = it
-                    // Extract domain for bottom bar
-                    try {
-                        val domain = java.net.URL(it).host.removePrefix("www.")
-                        currentUrl = domain
-                    } catch (e: Exception) {
+            BrowserWebView(
+                    url = url,
+                    onWebViewCreated = { webView = it },
+                    onUrlChanged = {
                         currentUrl = it
-                    }
-                },
-                onCanGoBackChanged = { canGoBack = it },
-                onCanGoForwardChanged = { canGoForward = it },
-                onTitleReceived = { pageTitle = it },
-                onFaviconReceived = { favicon = it },
-                onIsLoadingChanged = { isLoading = it },
-                modifier = Modifier.weight(1f)
-        )
+                        // Extract domain for bottom bar
+                        try {
+                            val domain = java.net.URL(it).host.removePrefix("www.")
+                            currentUrl = domain
+                        } catch (e: Exception) {
+                            currentUrl = it
+                        }
+                    },
+                    onCanGoBackChanged = { canGoBack = it },
+                    onCanGoForwardChanged = { canGoForward = it },
+                    onTitleReceived = { pageTitle = it },
+                    onFaviconReceived = { favicon = it },
+                    onIsLoadingChanged = { isLoading = it },
+                    modifier = Modifier.weight(1f)
+            )
 
-        BrowserBottomBar(
-                currentUrl = currentUrl,
-                canGoBack = canGoBack,
-                canGoForward = canGoForward,
-                isLoading = isLoading,
-                onBackClick = { webView?.goBack() },
-                onForwardClick = { webView?.goForward() },
-                onReloadClick = { webView?.reload() },
-                onMenuClick = { /* TODO */}
+            BrowserBottomBar(
+                    currentUrl = currentUrl,
+                    canGoBack = canGoBack,
+                    canGoForward = canGoForward,
+                    isLoading = isLoading,
+                    onBackClick = { webView?.goBack() },
+                    onForwardClick = { webView?.goForward() },
+                    onReloadClick = { webView?.reload() },
+                    onMenuClick = { showMenu = !showMenu }
+            )
+        }
+        BrowserMenuModal(
+            showMenu = showMenu,
+            onClose = { showMenu = false }
         )
     }
 }
@@ -207,6 +224,7 @@ fun BrowserWebView(
                         settings.domStorageEnabled = true
                         settings.loadWithOverviewMode = true
                         settings.useWideViewPort = true
+                        settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
 
                         webViewClient =
                                 object : WebViewClient() {
@@ -249,6 +267,140 @@ fun BrowserWebView(
                 },
                 modifier = Modifier.fillMaxSize()
         )
+    }
+}
+
+@Composable
+fun BrowserMenuModal(
+    showMenu: Boolean,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.fillMaxSize()) {
+        // Backdrop
+        AnimatedVisibility(
+            visible = showMenu,
+            enter = fadeIn(animationSpec = tween(200)),
+            exit = fadeOut(animationSpec = tween(200)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onClose() }
+            )
+        }
+
+        // Menu modal
+        AnimatedVisibility(
+            visible = showMenu,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(300, easing = FastOutSlowInEasing)
+            ),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(300, easing = FastOutSlowInEasing)
+            ),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 16.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFFF5F5F5), // Light gray background
+                shadowElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp, 8.dp)
+                            .background(
+                                Color(0xFFBDC1C6),
+                                CircleShape
+                            )
+                    )
+
+                    // Menu items - TANPA DIVIDER
+                    SimpleMenuItem(
+                        icon = Icons.Default.Download,
+                        label = "Downloads",
+                        onClick = { onClose() }
+                    )
+
+                    SimpleMenuItem(
+                        icon = Icons.Default.Bookmark,
+                        label = "Bookmarks",
+                        onClick = { onClose() }
+                    )
+
+                    SimpleMenuItem(
+                        icon = Icons.Default.Extension,
+                        label = "Extensions",
+                        onClick = { onClose() }
+                    )
+
+                    SimpleMenuItem(
+                        icon = Icons.Default.History,
+                        label = "History",
+                        onClick = { onClose() }
+                    )
+
+                    SimpleMenuItem(
+                        icon = Icons.Default.Settings,
+                        label = "Settings",
+                        onClick = { onClose() }
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimpleMenuItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .size(48.dp)
+            .padding(horizontal = 24.dp, vertical = 18.dp)
+            .background(Color(0xFFF5F5F5))
+            .clickable(
+                onClick = onClick
+            ),
+        ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier.size(24.dp),
+            )
+
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 16.sp,
+                color = Color(0xFF202124), // Almost black
+                fontWeight = FontWeight.Normal
+            )
+        }
     }
 }
 
