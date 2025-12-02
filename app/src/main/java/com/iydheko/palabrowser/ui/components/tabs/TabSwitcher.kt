@@ -1,5 +1,7 @@
 package com.iydheko.palabrowser.ui.components.tabs
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,24 +24,32 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,63 +63,107 @@ fun TabSwitcher(
         onTabSelected: (String) -> Unit,
         onTabClosed: (String) -> Unit,
         onNewTab: () -> Unit,
-        modifier: Modifier = Modifier
+        modifier: Modifier = Modifier,
+        paddingValues: PaddingValues = PaddingValues(0.dp),
+        onMenuClick: () -> Unit,
 ) {
-        val initialPage = tabs.indexOfFirst { it.id == activeTabId }.takeIf { it != -1 } ?: 0
-        val pagerState = rememberPagerState(initialPage = initialPage) { tabs.size }
+    val initialPage = tabs.indexOfFirst { it.id == activeTabId }.takeIf { it != -1 } ?: 0
+    val pagerState = rememberPagerState(initialPage = initialPage) { tabs.size }
 
-        LaunchedEffect(activeTabId) {
-                val index = tabs.indexOfFirst { it.id == activeTabId }
-                if (index != -1 && index != pagerState.currentPage) {
-                        pagerState.animateScrollToPage(index)
-                }
+    LaunchedEffect(activeTabId) {
+        val index = tabs.indexOfFirst { it.id == activeTabId }
+        if (index != -1 && index != pagerState.currentPage) {
+            pagerState.animateScrollToPage(index)
         }
+    }
+    Column(
+        modifier = modifier.fillMaxSize()
+            .padding(paddingValues)
+            .background(
+                Color(0xFFE8B86D)
+            ) // Match the background color from screenshot
+    ) {
+        // Top Bar Area (Placeholder or actual top bar if needed in switcher)
+        // For now just spacing
+        Spacer(modifier = Modifier.height(40.dp))
 
-        Column(
-                modifier = modifier.fillMaxSize()
-                                .background(
-                                        Color(0xFFE8B86D)
-                                ) // Match the background color from screenshot
+        // Horizontal Pager for Tabs
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(horizontal = 40.dp),
+            pageSpacing = 16.dp,
+            pageSize = PageSize.Fill,
+            modifier = Modifier.weight(1f)
+        ) { page ->
+            val tab = tabs[page]
+            TabCard(
+                tab = tab,
+                isActive = tab.id == activeTabId,
+                onClick = { onTabSelected(tab.id) },
+                onClose = { onTabClosed(tab.id) }
+            )
+        }
+        Row(
+            modifier = modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-                // Top Bar Area (Placeholder or actual top bar if needed in switcher)
-                // For now just spacing
-                Spacer(modifier = Modifier.height(40.dp))
-
-                // Horizontal Pager for Tabs
-                HorizontalPager(
-                        state = pagerState,
-                        contentPadding = PaddingValues(horizontal = 40.dp),
-                        pageSpacing = 16.dp,
-                        pageSize = PageSize.Fill,
-                        modifier = Modifier.weight(1f)
-                ) { page ->
-                        val tab = tabs[page]
-                        TabCard(
-                                tab = tab,
-                                isActive = tab.id == activeTabId,
-                                onClick = { onTabSelected(tab.id) },
-                                onClose = { onTabClosed(tab.id) }
-                        )
-                }
-
-                // Bottom Bar Area for Tab Switcher (Plus button)
-                Box(
-                        modifier = Modifier.fillMaxWidth().padding(20.dp),
-                        contentAlignment = Alignment.Center
+            Box(
+                modifier =
+                    Modifier.size(48.dp)
+                        .clip(CircleShape)
+                        .clickable {
+                            if (tabs.isNotEmpty()) {
+                                onTabSelected(tabs[pagerState.currentPage].id)
+                            }
+                        },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector =
+                        ImageVector.vectorResource(
+                            id = R.drawable.select_window_2_24px
+                        ),
+                    contentDescription = "Select Tabs",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .animateContentSize(),
+                color = Color.White,
+                shape = RoundedCornerShape(50),
+                onClick = onNewTab,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                        // Plus Button
-                        IconButton(
-                                onClick = onNewTab,
-                                modifier = Modifier.size(56.dp).background(Color.White, CircleShape)
-                        ) {
-                                Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "New Tab",
-                                        tint = Color.Black
-                                )
-                        }
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "New Tab",
+                        tint = Color.Black
+                    )
                 }
+            }
+            Box(
+                modifier =
+                    Modifier.size(48.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onMenuClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreHoriz,
+                    contentDescription = "More menu",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
+    }
 }
 
 @Composable
@@ -149,12 +203,17 @@ fun TabCard(
                 overflow = TextOverflow.Ellipsis
             )
         }
+        val thumbnail = tab.thumbnail
         Card(
             modifier =
                 Modifier.fillMaxWidth()
-                    .aspectRatio(
-                        0.6f
-                    ) // Portrait aspect ratio
+                    .then(
+                        if (thumbnail != null) {
+                            Modifier.aspectRatio(thumbnail.width.toFloat() / thumbnail.height.toFloat())
+                        } else {
+                            Modifier.aspectRatio(0.6f) // Fallback for no thumbnail
+                        }
+                    )
                     .clickable(onClick = onClick),
             shape = RoundedCornerShape(24.dp),
             colors =
@@ -164,11 +223,11 @@ fun TabCard(
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Thumbnail
-                if (tab.thumbnail != null) {
+                if (thumbnail != null) {
                     Image(
-                        bitmap = tab.thumbnail.asImageBitmap(),
+                        bitmap = thumbnail.asImageBitmap(),
                         contentDescription = "Tab Thumbnail",
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Crop, // Crop is fine now as aspect ratios match
                         modifier = Modifier.fillMaxSize(),
                         alignment = Alignment.TopStart
                     )

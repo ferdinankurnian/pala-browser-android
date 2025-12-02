@@ -56,113 +56,113 @@ fun BrowserBottomBar(
         onTabSwitcherClick: () -> Unit,
         modifier: Modifier = Modifier
 ) {
-        val infiniteTransition = rememberInfiniteTransition(label = "infinite transition")
-        val rotation by
-                infiniteTransition.animateFloat(
-                        initialValue = 0f,
-                        targetValue = 360f,
-                        animationSpec =
-                                infiniteRepeatable(
-                                        animation = tween(1000, easing = LinearEasing),
-                                        repeatMode = RepeatMode.Restart
-                                ),
-                        label = "Refresh button rotation"
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite transition")
+    val rotation by
+    infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(1000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+        label = "Refresh button rotation"
+    )
+
+    Row(
+        modifier = modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier =
+                Modifier.size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onTabSwitcherClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector =
+                    ImageVector.vectorResource(
+                        id = R.drawable.select_window_2_24px
+                    ),
+                contentDescription = "Select Tabs",
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Surface(
+            modifier = Modifier.weight(1f).animateContentSize(),
+            color = Color.White,
+            shape = RoundedCornerShape(50)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBackClick, enabled = canGoBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                        contentDescription = "Back"
+                    )
+                }
+
+                AnimatedVisibility(visible = canGoForward) {
+                    IconButton(onClick = onForwardClick) {
+                        Icon(
+                            imageVector =
+                                Icons.AutoMirrored.Outlined
+                                    .ArrowForward,
+                            contentDescription = "Forward"
+                        )
+                    }
+                }
+
+                Text(
+                    text = currentUrl,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 17.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.SemiBold
                 )
 
-        Row(
-                modifier = modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 18.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-        ) {
-                Box(
-                        modifier =
-                                Modifier.size(48.dp)
-                                        .clip(CircleShape)
-                                        .clickable(onClick = onTabSwitcherClick),
-                        contentAlignment = Alignment.Center
-                ) {
-                        Icon(
-                                imageVector =
-                                        ImageVector.vectorResource(
-                                                id = R.drawable.select_window_2_24px
-                                        ),
-                                contentDescription = "Select Tabs",
-                                modifier = Modifier.size(24.dp)
-                        )
-                }
-                Surface(
-                        modifier = Modifier.weight(1f).animateContentSize(),
-                        color = Color.White,
-                        shape = RoundedCornerShape(50)
-                ) {
-                        Row(
-                                modifier = Modifier.padding(horizontal = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                        ) {
-                                IconButton(onClick = onBackClick, enabled = canGoBack) {
-                                        Icon(
-                                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                                                contentDescription = "Back"
-                                        )
-                                }
-
-                                AnimatedVisibility(visible = canGoForward) {
-                                        IconButton(onClick = onForwardClick) {
-                                                Icon(
-                                                        imageVector =
-                                                                Icons.AutoMirrored.Outlined
-                                                                        .ArrowForward,
-                                                        contentDescription = "Forward"
-                                                )
-                                        }
-                                }
-
-                                Text(
-                                        text = currentUrl,
-                                        modifier = Modifier.weight(1f),
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontSize = 17.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        fontWeight = FontWeight.SemiBold
+                IconButton(onClick = onReloadClick) {
+                    Icon(
+                        imageVector =
+                            if (isLoading) {
+                                ImageVector.vectorResource(
+                                    id =
+                                        R.drawable
+                                            .progress_activity_24px
                                 )
-
-                                IconButton(onClick = onReloadClick) {
-                                        Icon(
-                                                imageVector =
-                                                        if (isLoading) {
-                                                                ImageVector.vectorResource(
-                                                                        id =
-                                                                                R.drawable
-                                                                                        .progress_activity_24px
-                                                                )
-                                                        } else {
-                                                                Icons.Outlined.Refresh
-                                                        },
-                                                contentDescription = "Reload",
-                                                modifier =
-                                                        Modifier.graphicsLayer(
-                                                                rotationZ =
-                                                                        if (isLoading) rotation
-                                                                        else 0f
-                                                        )
-                                        )
-                                }
-                        }
-                }
-                Box(
+                            } else {
+                                Icons.Outlined.Refresh
+                            },
+                        contentDescription = "Reload",
                         modifier =
-                                Modifier.size(48.dp)
-                                        .clip(CircleShape)
-                                        .clickable(onClick = onMenuClick),
-                        contentAlignment = Alignment.Center
-                ) {
-                        Icon(
-                                imageVector = Icons.Default.MoreHoriz,
-                                contentDescription = "More menu",
-                                modifier = Modifier.size(24.dp)
-                        )
+                            Modifier.graphicsLayer(
+                                rotationZ =
+                                    if (isLoading) rotation
+                                    else 0f
+                            )
+                    )
                 }
+            }
         }
+        Box(
+            modifier =
+                Modifier.size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onMenuClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreHoriz,
+                contentDescription = "More menu",
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
 }

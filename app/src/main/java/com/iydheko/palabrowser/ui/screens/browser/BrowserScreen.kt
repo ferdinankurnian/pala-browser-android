@@ -211,17 +211,19 @@ fun BrowserScreen(
                     exit = fadeOut()
             ) {
                 TabSwitcher(
-                        tabs = tabs,
-                        activeTabId = activeTabId,
-                        onTabSelected = { id ->
-                            viewModel.switchToTab(id)
-                            showTabSwitcher = false
-                        },
-                        onTabClosed = { id -> viewModel.closeTab(id) },
-                        onNewTab = {
-                            viewModel.createNewTab()
-                            showTabSwitcher = false
-                        },
+                    tabs = tabs,
+                    activeTabId = activeTabId,
+                    onTabSelected = { id ->
+                        viewModel.switchToTab(id)
+                        showTabSwitcher = false
+                    },
+                    onTabClosed = { id -> viewModel.closeTab(id) },
+                    onNewTab = {
+                        viewModel.createNewTab()
+                        showTabSwitcher = false
+                    },
+                    paddingValues = paddingValues,
+                    onMenuClick = { showMenu = !showMenu },
 //                        sharedTransitionScope = this@SharedTransitionLayout,
 //                        animatedVisibilityScope = this@AnimatedVisibility
                 )
