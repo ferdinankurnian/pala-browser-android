@@ -43,29 +43,29 @@ fun BrowserWebView(
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
 
     val fileChooserLauncher =
-            rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.StartActivityForResult()
-            ) { result ->
-                var uris: Array<Uri>? = null
-                if (result.resultCode == Activity.RESULT_OK) {
-                    val intentData = result.data
-                    if (intentData?.clipData != null) {
-                        // Handle multiple files from Photo Picker or Document Picker
-                        val count = intentData.clipData!!.itemCount
-                        uris = Array(count) { i -> intentData.clipData!!.getItemAt(i).uri }
-                    } else if (intentData?.data != null) {
-                        // Handle single file
-                        uris = arrayOf(intentData.data!!)
-                    } else if (cameraImageUri != null) {
-                        // Handle camera photo
-                        uris = arrayOf(cameraImageUri!!)
-                    }
+        rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            var uris: Array<Uri>? = null
+            if (result.resultCode == Activity.RESULT_OK) {
+                val intentData = result.data
+                if (intentData?.clipData != null) {
+                    // Handle multiple files from Photo Picker or Document Picker
+                    val count = intentData.clipData!!.itemCount
+                    uris = Array(count) { i -> intentData.clipData!!.getItemAt(i).uri }
+                } else if (intentData?.data != null) {
+                    // Handle single file
+                    uris = arrayOf(intentData.data!!)
+                } else if (cameraImageUri != null) {
+                    // Handle camera photo
+                    uris = arrayOf(cameraImageUri!!)
                 }
-                // Always call the callback to finalize, even with null.
-                fileChooserCallback?.onReceiveValue(uris)
-                fileChooserCallback = null
-                cameraImageUri = null
             }
+            // Always call the callback to finalize, even with null.
+            fileChooserCallback?.onReceiveValue(uris)
+            fileChooserCallback = null
+            cameraImageUri = null
+        }
 
     // Lifecycle Management
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current

@@ -8,6 +8,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,11 +41,13 @@ import com.iydheko.palabrowser.ui.components.browser.BrowserBottomBar
 import com.iydheko.palabrowser.ui.components.browser.BrowserMenuModal
 import com.iydheko.palabrowser.ui.components.browser.BrowserTopBar
 import com.iydheko.palabrowser.ui.components.browser.BrowserWebView
+import com.iydheko.palabrowser.ui.components.tabs.TabSwitcher
 import com.iydheko.palabrowser.utils.extractDomain
 import com.iydheko.palabrowser.utils.getBaseUrl
 import com.iydheko.palabrowser.utils.isDeepLink
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalAnimationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun BrowserScreen(
         paddingValues: PaddingValues = PaddingValues(0.dp),
@@ -52,14 +60,12 @@ fun BrowserScreen(
     }
     val coroutineScope = rememberCoroutineScope()
 
-    // Notification Permission Request
+    // Notification Permission Request (Keep existing logic)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val permissionLauncher =
                 rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.RequestPermission()
-                ) { _: Boolean ->
-                    // Handle permission result
-                }
+                ) { _: Boolean -> }
 
         LaunchedEffect(Unit) {
             if (ContextCompat.checkSelfPermission(
@@ -72,31 +78,43 @@ fun BrowserScreen(
         }
     }
 
-    val pageTitle by viewModel.pageTitle
-    val favicon by viewModel.favicon
-    val currentUrl by viewModel.currentUrl
+    // ViewModel State
+    val tabs = viewModel.tabs
+    val activeTabId by viewModel.activeTabId
+    val currentUrl = viewModel.currentUrl
+    val pageTitle = viewModel.pageTitle
+    val favicon = viewModel.favicon
     val canGoBack by viewModel.canGoBack
     val canGoForward by viewModel.canGoForward
     val isLoading by viewModel.isLoading
 
+    // UI State
     var showMenu by remember { mutableStateOf(false) }
+    var showTabSwitcher by remember { mutableStateOf(false) }
+
+    // Animation State
+    // We use a simple boolean to trigger AnimatedContent or custom layout transition
+
     var rememberLastPage by remember {
         mutableStateOf(sharedPrefs.getBoolean("rememberLastPage", true))
     }
 
-    val initialUrl =
-            if (rememberLastPage) {
-                sharedPrefs.getString("lastUrl", "https://google.com") ?: "https://google.com"
-            } else {
-                "https://google.com"
-            }
-
-    var url by remember { mutableStateOf(initialUrl) }
-
-    val webViewInstance = viewModel.getOrCreateWebView(url)
+    // Initial Load Logic
+    LaunchedEffect(Unit) {
+        if ((tabs as List<*>).isEmpty()) {
+            val initialUrl =
+                    if (rememberLastPage) {
+                        sharedPrefs.getString("lastUrl", "https://google.com")
+                                ?: "https://google.com"
+                    } else {
+                        "https://google.com"
+                    }
+            viewModel.createNewTab(initialUrl)
+        }
+    }
 
     LaunchedEffect(currentUrl, rememberLastPage) {
-        if (rememberLastPage) {
+        if (rememberLastPage && currentUrl.isNotEmpty()) {
             sharedPrefs.edit { putString("lastUrl", currentUrl) }
         }
     }
@@ -105,28 +123,28 @@ fun BrowserScreen(
     val backButtonEnabled = remember(canGoBack, currentUrl) { canGoBack || isDeepLink(currentUrl) }
 
     val onBackClickHandler: () -> Unit = {
-        if (viewModel.webView?.canGoBack() == true) {
-            viewModel.webView?.goBack()
+        if (viewModel.activeWebView?.canGoBack() == true) {
+            viewModel.activeWebView?.goBack()
         } else if (isDeepLink(currentUrl)) {
             val baseUrl = getBaseUrl(currentUrl)
-            viewModel.webView?.loadUrl(baseUrl)
+            viewModel.activeWebView?.loadUrl(baseUrl)
         }
     }
 
-    // Broadcast Receiver for PlaybackService commands
+    // Broadcast Receiver (Keep existing logic)
     DisposableEffect(context) {
         val receiver =
                 object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
                         when (intent?.action) {
                             PlaybackService.ACTION_REQUEST_PLAY -> {
-                                viewModel.webView?.evaluateJavascript(
+                                viewModel.activeWebView?.evaluateJavascript(
                                         "document.querySelector('video')?.play();",
                                         null
                                 )
                             }
                             PlaybackService.ACTION_REQUEST_PAUSE -> {
-                                viewModel.webView?.evaluateJavascript(
+                                viewModel.activeWebView?.evaluateJavascript(
                                         "document.querySelector('video')?.pause();",
                                         null
                                 )
@@ -139,44 +157,77 @@ fun BrowserScreen(
                     addAction(PlaybackService.ACTION_REQUEST_PLAY)
                     addAction(PlaybackService.ACTION_REQUEST_PAUSE)
                 }
-
-        // Using ContextCompat.registerReceiver to handle RECEIVER_NOT_EXPORTED flags correctly
-        // across different API levels, especially for targetSdk 34+.
         ContextCompat.registerReceiver(
                 context,
                 receiver,
                 intentFilter,
                 ContextCompat.RECEIVER_NOT_EXPORTED
         )
-
         onDispose { context.unregisterReceiver(receiver) }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-                modifier =
-                        Modifier.fillMaxSize().background(Color(0xFFE8B86D)).padding(paddingValues)
-        ) {
-            BrowserTopBar(title = pageTitle, favicon = favicon)
+    // Main Layout with Shared Transition
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFFE8B86D))) {
+        SharedTransitionLayout {
+            // Browser View - Always visible (no animation)
+            Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                BrowserTopBar(title = pageTitle, favicon = favicon)
 
-            BrowserWebView(
-                    webViewInstance = webViewInstance,
-                    modifier = Modifier.weight(1f),
-                    onTitleChange = { viewModel.updateTitle(it) },
-                    onIconChange = { viewModel.updateIcon(it) }
-            )
+                // WebView Container
+                Box(modifier = Modifier.weight(1f)) {
+                    if (activeTabId != null && !showTabSwitcher) {
+                        val webView = viewModel.getOrCreateWebViewForTab(activeTabId!!, context)
+                        BrowserWebView(
+                                webViewInstance = webView,
+                                modifier = Modifier.fillMaxSize(),
+                                onTitleChange = { viewModel.updateCurrentTabTitle(it) },
+                                onIconChange = { viewModel.updateCurrentTabIcon(it) }
+                        )
+                    }
+                }
 
-            BrowserBottomBar(
-                    currentUrl = displayUrl,
-                    canGoBack = backButtonEnabled,
-                    canGoForward = canGoForward,
-                    isLoading = isLoading,
-                    onBackClick = onBackClickHandler,
-                    onForwardClick = { viewModel.webView?.goForward() },
-                    onReloadClick = { viewModel.webView?.reload() },
-                    onMenuClick = { showMenu = !showMenu },
-            )
+                BrowserBottomBar(
+                        currentUrl = displayUrl,
+                        canGoBack = backButtonEnabled,
+                        canGoForward = canGoForward,
+                        isLoading = isLoading,
+                        onBackClick = onBackClickHandler,
+                        onForwardClick = { viewModel.activeWebView?.goForward() },
+                        onReloadClick = { viewModel.activeWebView?.reload() },
+                        onMenuClick = { showMenu = !showMenu },
+                        onTabSwitcherClick = {
+                            // Capture thumbnail before switching to tab switcher view
+                            viewModel.captureThumbnailForCurrentTab()
+                            showTabSwitcher = true
+                        }
+                )
+            }
+
+            // Tab Switcher - Overlay on top when visible
+            AnimatedVisibility(
+                    visible = showTabSwitcher,
+                    label = "TabSwitcherView",
+                    enter = fadeIn(),
+                    exit = fadeOut()
+            ) {
+                TabSwitcher(
+                        tabs = tabs,
+                        activeTabId = activeTabId,
+                        onTabSelected = { id ->
+                            viewModel.switchToTab(id)
+                            showTabSwitcher = false
+                        },
+                        onTabClosed = { id -> viewModel.closeTab(id) },
+                        onNewTab = {
+                            viewModel.createNewTab()
+                            showTabSwitcher = false
+                        },
+//                        sharedTransitionScope = this@SharedTransitionLayout,
+//                        animatedVisibilityScope = this@AnimatedVisibility
+                )
+            }
         }
+
         BrowserMenuModal(
                 showMenu = showMenu,
                 rememberLastPage = rememberLastPage,

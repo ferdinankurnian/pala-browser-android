@@ -13,18 +13,43 @@ import com.iydheko.palabrowser.WebPlaybackInterface
 import com.iydheko.palabrowser.ui.components.browser.BackgroundWebView
 
 class WebViewModel(application: Application) : AndroidViewModel(application) {
-    // Kita simpen instance WebView di sini
     private val appContext = application.applicationContext
-    @SuppressLint("StaticFieldLeak") var webView: WebView? = null
 
-    //    private var hasLoadedInitialUrl = false
+    @SuppressLint("StaticFieldLeak")
+    private val webViewPool = mutableMapOf<String, WebView>()
 
-    private val _currentUrl = mutableStateOf("https://google.com")
-    val currentUrl: State<String> = _currentUrl
+    val activeWebView: WebView?
+        get() = webViewPool[activeTabId.value]
 
-    private val _pageTitle = mutableStateOf("Loading...")
-    val pageTitle: State<String> = _pageTitle
 
+    // Tab Data Class
+    data class BrowserTab(
+        val id: String = java.util.UUID.randomUUID().toString(),
+        val url: String = "https://google.com",
+        val title: String = "New Tab",
+        val favicon: Bitmap? = null,
+        val thumbnail: Bitmap? = null // Snapshot for the switcher
+    )
+
+    private val _tabs = androidx.compose.runtime.mutableStateListOf<BrowserTab>()
+    val tabs: List<BrowserTab>
+        get() = _tabs
+
+    private val _activeTabId = mutableStateOf<String?>(null)
+    val activeTabId: State<String?> = _activeTabId
+
+    // Computed properties for the active tab
+    val currentTab: BrowserTab?
+        get() = _tabs.find { it.id == _activeTabId.value }
+
+    val currentUrl: String
+        get() = currentTab?.url ?: ""
+    val pageTitle: String
+        get() = currentTab?.title ?: ""
+    val favicon: Bitmap?
+        get() = currentTab?.favicon
+
+    // Navigation state for the ACTIVE tab
     private val _canGoBack = mutableStateOf(false)
     val canGoBack: State<Boolean> = _canGoBack
 
@@ -34,74 +59,172 @@ class WebViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
 
-    private val _favicon = mutableStateOf<Bitmap?>(null)
-    val favicon: State<Bitmap?> = _favicon
-
-    fun updateTitle(title: String?) {
-        _pageTitle.value = title ?: "Untitled"
+    init {
+        // Create initial tab
+        createNewTab()
     }
 
-    fun updateIcon(icon: Bitmap?) {
-        _favicon.value = icon
+    fun createNewTab(url: String = "https://google.com") {
+        val newTab = BrowserTab(url = url)
+        _tabs.add(newTab)
+        switchToTab(newTab.id)
     }
 
-    // Fungsi buat inisialisasi WebView sekali aja
-    fun getOrCreateWebView(initialUrl: String): WebView {
-        if (webView == null) {
-            webView =
-                    BackgroundWebView(appContext).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.loadWithOverviewMode = true
-                        settings.useWideViewPort = true
-                        settings.allowFileAccess = true
-                        settings.userAgentString =
-                                "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
+    fun closeTab(tabId: String) {
+        val tabIndex = _tabs.indexOfFirst { it.id == tabId }
+        if (tabIndex == -1) return
 
-                        addJavascriptInterface(WebPlaybackInterface(appContext), "Android")
-                        webViewClient = customWebViewClient
-                        webChromeClient = customWebChromeClient
+        // Destroy and remove the associated WebView
+        webViewPool.remove(tabId)?.destroy()
 
-                        // LOAD URL CUMAN SEKALI PAS BIKIN BARU
-                        loadUrl(initialUrl)
-                    }
+        _tabs.removeAt(tabIndex)
+
+        if (_activeTabId.value == tabId) {
+            // If we closed the active tab, switch to the one before it, or the one after, or null
+            if (_tabs.isNotEmpty()) {
+                val newIndex = if (tabIndex > 0) tabIndex - 1 else 0
+                switchToTab(_tabs[newIndex].id, captureThumbnail = false)
+            } else {
+                _activeTabId.value = null
+                // Optionally create a new tab if all are closed
+                createNewTab()
+            }
+        }
+    }
+
+    fun switchToTab(tabId: String, captureThumbnail: Boolean = true) {
+        // 1. Capture thumbnail of the CURRENT tab before switching away
+        if (captureThumbnail) {
+            val currentId = _activeTabId.value
+            if (currentId != null && activeWebView != null) {
+                captureThumbnail(currentId)
+            }
         }
 
-        // webView?.loadUrl(initialUrl) // HAPUS INI BIAR GAK RELOAD TERUS
+        // 2. Update active ID
+        _activeTabId.value = tabId
 
-        return webView!!
+        // 3. Update nav state for the new tab
+        val newWebView = activeWebView
+        _canGoBack.value = newWebView?.canGoBack() ?: false
+        _canGoForward.value = newWebView?.canGoForward() ?: false
+        // NOTE: isLoading is not persisted per-tab in this model, it's global.
     }
 
-    // Di dalam class WebViewModel:
+    fun updateCurrentTabUrl(url: String) {
+        val currentId = _activeTabId.value ?: return
+        val index = _tabs.indexOfFirst { it.id == currentId }
+        if (index != -1) {
+            _tabs[index] = _tabs[index].copy(url = url)
+        }
+    }
+
+    fun updateCurrentTabTitle(title: String?) {
+        val currentId = _activeTabId.value ?: return
+        val index = _tabs.indexOfFirst { it.id == currentId }
+        if (index != -1) {
+            _tabs[index] = _tabs[index].copy(title = title ?: "Untitled")
+        }
+    }
+
+    fun updateCurrentTabIcon(icon: Bitmap?) {
+        val currentId = _activeTabId.value ?: return
+        val index = _tabs.indexOfFirst { it.id == currentId }
+        if (index != -1) {
+            _tabs[index] = _tabs[index].copy(favicon = icon)
+        }
+    }
+
+    fun captureThumbnailForCurrentTab() {
+        val currentId = _activeTabId.value ?: return
+        captureThumbnail(currentId)
+    }
+
+    fun captureThumbnail(tabId: String) {
+        val webView = activeWebView ?: return
+        try {
+            // Create bitmap from WebView
+            val bitmap = Bitmap.createBitmap(webView.width, webView.height, Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            // Get current scroll position
+            val scrollX = webView.scrollX
+            val scrollY = webView.scrollY
+
+            // Translate the canvas to draw the visible part of the WebView
+            canvas.translate((-scrollX).toFloat(), (-scrollY).toFloat())
+
+            webView.draw(canvas)
+
+            val index = _tabs.indexOfFirst { it.id == tabId }
+            if (index != -1) {
+                _tabs[index] = _tabs[index].copy(thumbnail = bitmap)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // Initialize WebView
+    @SuppressLint("StaticFieldLeak")
+    fun getOrCreateWebViewForTab(tabId: String, context: android.content.Context): WebView {
+        return webViewPool.getOrPut(tabId) {
+            val tab = _tabs.find { it.id == tabId }
+            BackgroundWebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                settings.allowFileAccess = true
+                settings.userAgentString =
+                        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
+
+                addJavascriptInterface(WebPlaybackInterface(context), "Android")
+                webViewClient = customWebViewClient
+                webChromeClient = customWebChromeClient
+            }.also { webView ->
+                tab?.let {
+                    // Only load the URL if it's not the default "about:blank" or if it hasn't been loaded before.
+                    // This prevents re-loading on configuration changes if the webview is re-attached.
+                    if (webView.url == null || webView.url == "about:blank") {
+                        webView.loadUrl(it.url)
+                    }
+                }
+            }
+        }
+    }
 
     private val customWebViewClient =
             object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    _isLoading.value = true
-                    _currentUrl.value = url ?: ""
-                    // Di sini lo bisa panggil start PlaybackService kalo perlu
+                    // Only update loading state if the view is the currently active one
+                    if (view === activeWebView) {
+                        _isLoading.value = true
+                    }
+                    if (url != null) updateCurrentTabUrl(url)
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    _isLoading.value = false
-                    _currentUrl.value = url ?: ""
-                    // Update status navigasi
-                    _canGoBack.value = view?.canGoBack() ?: false
-                    _canGoForward.value = view?.canGoForward() ?: false
+                    if (view === activeWebView) {
+                        _isLoading.value = false
+                        _canGoBack.value = view?.canGoBack() ?: false
+                        _canGoForward.value = view?.canGoForward() ?: false
+                    }
+                    if (url != null) updateCurrentTabUrl(url)
                     view?.evaluateJavascript(INJECT_JS, null)
                 }
 
-                // Dipanggil saat navigasi terjadi, penting untuk meng-update status back/forward
                 override fun doUpdateVisitedHistory(
                         view: WebView?,
                         url: String?,
                         isReload: Boolean
                 ) {
                     super.doUpdateVisitedHistory(view, url, isReload)
-                    _canGoBack.value = view?.canGoBack() ?: false
-                    _canGoForward.value = view?.canGoForward() ?: false
+                    if (view === activeWebView) {
+                        _canGoBack.value = view?.canGoBack() ?: false
+                        _canGoForward.value = view?.canGoForward() ?: false
+                    }
                 }
             }
 
@@ -109,20 +232,20 @@ class WebViewModel(application: Application) : AndroidViewModel(application) {
             object : WebChromeClient() {
                 override fun onReceivedTitle(view: WebView?, title: String?) {
                     super.onReceivedTitle(view, title)
-                    _pageTitle.value = title ?: "Untitled"
+                    updateCurrentTabTitle(title)
                 }
 
                 override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {
                     super.onReceivedIcon(view, icon)
-                    _favicon.value = icon
+                    updateCurrentTabIcon(icon)
                 }
             }
 
-    // Opsional: Clear pas ViewModel mati total
     override fun onCleared() {
         super.onCleared()
-        webView?.destroy()
-        webView = null
+        // Destroy all WebViews in the pool
+        webViewPool.values.forEach { it.destroy() }
+        webViewPool.clear()
     }
 }
 

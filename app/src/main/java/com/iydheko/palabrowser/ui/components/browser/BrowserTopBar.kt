@@ -25,8 +25,8 @@ import androidx.compose.ui.unit.dp
 import com.iydheko.palabrowser.R
 
 @Composable
-fun BrowserTopBar(title: String, favicon: Bitmap?) {
-    Surface(modifier = Modifier.fillMaxWidth(), color = Color.Transparent) {
+fun BrowserTopBar(title: String, favicon: Bitmap?, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier.fillMaxWidth(), color = Color.Transparent) {
         Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.Center,

@@ -53,6 +53,7 @@ fun BrowserBottomBar(
         onForwardClick: () -> Unit,
         onReloadClick: () -> Unit,
         onMenuClick: () -> Unit,
+        onTabSwitcherClick: () -> Unit,
         modifier: Modifier = Modifier
 ) {
         val infiniteTransition = rememberInfiniteTransition(label = "infinite transition")
@@ -77,7 +78,7 @@ fun BrowserBottomBar(
                         modifier =
                                 Modifier.size(48.dp)
                                         .clip(CircleShape)
-                                        .clickable(onClick = onMenuClick),
+                                        .clickable(onClick = onTabSwitcherClick),
                         contentAlignment = Alignment.Center
                 ) {
                         Icon(
