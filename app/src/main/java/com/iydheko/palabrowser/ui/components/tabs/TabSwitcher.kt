@@ -101,6 +101,7 @@ fun TabSwitcher(
                 if (tabs.isNotEmpty()) {
                         HorizontalPager(
                                 state = pagerState,
+                                key = { index -> tabs[index].id },
                                 contentPadding = PaddingValues(horizontal = 40.dp),
                                 pageSpacing = 16.dp,
                                 pageSize = PageSize.Fill,
