@@ -1,9 +1,12 @@
 package com.iydheko.palabrowser.ui.components.tabs
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,9 +17,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
@@ -35,18 +40,30 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.iydheko.palabrowser.R
 import com.iydheko.palabrowser.ui.screens.browser.WebViewModel
+import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @Composable
 fun TabSwitcher(
@@ -168,6 +185,8 @@ fun TabSwitcher(
         }
 }
 
+
+
 @Composable
 fun TabCard(
         tab: WebViewModel.BrowserTab,
@@ -175,7 +194,68 @@ fun TabCard(
         onClick: () -> Unit,
         onClose: () -> Unit
 ) {
-        Column(modifier = Modifier.padding(bottom = 10.dp)) {
+    val scope = rememberCoroutineScope()
+    val offsetY = remember { Animatable(0f) }
+    val alpha = remember { Animatable(1f) }
+    var isDismissed by remember { mutableStateOf(false) }
+
+    // Dismiss threshold in pixels (around 200dp worth)
+            val dismissThreshold = -300f
+    if (isDismissed) {
+        LaunchedEffect(Unit) {
+            offsetY.animateTo(-2000f, animationSpec = tween(100))
+            alpha.animateTo(0f, animationSpec = tween(100))
+            onClose()
+        }
+        return
+    }
+
+    Column(
+        modifier =
+            Modifier.padding(bottom = 10.dp)
+                .offset { IntOffset(0, offsetY.value.roundToInt()) }
+                .alpha(alpha.value)
+                .clickable { onClick() }
+                .pointerInput(Unit) {
+                    val velocityTracker = VelocityTracker()
+                    detectVerticalDragGestures(
+                        onDragStart = { velocityTracker.resetTracking() },
+                        onVerticalDrag = { change, dragAmount ->
+                            scope.launch {
+                                val newOffset =
+                                    (offsetY.value + dragAmount).coerceAtMost(0f)
+                                offsetY.snapTo(newOffset)
+
+                                val alphaValue =
+                                    1f -
+                                            (newOffset.absoluteValue /
+                                                    dismissThreshold.absoluteValue)
+                                                .coerceIn(0f, 1f)
+                                alpha.snapTo(alphaValue)
+                            }
+                            velocityTracker.addPosition(
+                                change.uptimeMillis,
+                                change.position
+                            )
+                            change.consume()
+                        },
+                        onDragEnd = {
+                            val velocityY = velocityTracker.calculateVelocity().y
+                            scope.launch {
+                                if (velocityY < -1000f ||
+                                    offsetY.value < dismissThreshold
+                                ) {
+                                    isDismissed = true
+                                } else {
+                                    launch { offsetY.animateTo(0f, tween(300)) }
+                                    launch { alpha.animateTo(1f, tween(300)) }
+                                }
+                            }
+                        }
+                    )
+                }
+
+    ){
                 Row(
                         modifier =
                                 Modifier.fillMaxWidth()
@@ -223,7 +303,7 @@ fun TabCard(
                                                         ) // Fallback for no thumbnail
                                                 }
                                         )
-                                        .clickable(onClick = onClick),
+                                        ,
                         shape = RoundedCornerShape(24.dp),
                         colors =
                                 CardDefaults.cardColors(
@@ -250,23 +330,8 @@ fun TabCard(
                                                 contentAlignment = Alignment.Center
                                         ) { Text(text = tab.title, color = Color.Gray) }
                                 }
-                                // Close Button
-                                IconButton(
-                                        onClick = onClose,
-                                        modifier =
-                                                Modifier.align(Alignment.TopEnd)
-                                                        .padding(8.dp)
-                                                        .size(32.dp)
-                                                        .background(Color(0x80000000), CircleShape)
-                                ) {
-                                        Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Close Tab",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(16.dp)
-                                        )
-                                }
                         }
                 }
         }
+
 }
