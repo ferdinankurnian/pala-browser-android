@@ -191,6 +191,7 @@ fun BrowserScreen(
                         canGoBack = backButtonEnabled,
                         canGoForward = canGoForward,
                         isLoading = isLoading,
+                        hasNoTabs = tabs.isEmpty(),
                         onBackClick = onBackClickHandler,
                         onForwardClick = { viewModel.activeWebView?.goForward() },
                         onReloadClick = { viewModel.activeWebView?.reload() },
@@ -211,22 +212,23 @@ fun BrowserScreen(
                     exit = fadeOut()
             ) {
                 TabSwitcher(
-                    tabs = tabs,
-                    activeTabId = activeTabId,
-                    onTabSelected = { id ->
-                        viewModel.switchToTab(id)
-                        showTabSwitcher = false
-                    },
-                    onTabClosed = { id -> viewModel.closeTab(id) },
-                    onNewTab = {
-                        viewModel.createNewTab()
-                        showTabSwitcher = false
-                    },
-                    paddingValues = paddingValues,
-                    onMenuClick = { showMenu = !showMenu },
-//                        sharedTransitionScope = this@SharedTransitionLayout,
-//                        animatedVisibilityScope = this@AnimatedVisibility
-                )
+                        tabs = tabs,
+                        activeTabId = activeTabId,
+                        onTabSelected = { id ->
+                            viewModel.switchToTab(id)
+                            showTabSwitcher = false
+                        },
+                        onTabClosed = { id -> viewModel.closeTab(id) },
+                        onNewTab = {
+                            viewModel.createNewTab()
+                            showTabSwitcher = false
+                        },
+                        paddingValues = paddingValues,
+                        onMenuClick = { showMenu = !showMenu },
+                        //                        sharedTransitionScope =
+                        // this@SharedTransitionLayout,
+                        //                        animatedVisibilityScope = this@AnimatedVisibility
+                        )
             }
         }
 

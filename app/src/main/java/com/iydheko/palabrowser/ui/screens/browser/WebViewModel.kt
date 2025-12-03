@@ -15,20 +15,18 @@ import com.iydheko.palabrowser.ui.components.browser.BackgroundWebView
 class WebViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
 
-    @SuppressLint("StaticFieldLeak")
-    private val webViewPool = mutableMapOf<String, WebView>()
+    @SuppressLint("StaticFieldLeak") private val webViewPool = mutableMapOf<String, WebView>()
 
     val activeWebView: WebView?
         get() = webViewPool[activeTabId.value]
 
-
     // Tab Data Class
     data class BrowserTab(
-        val id: String = java.util.UUID.randomUUID().toString(),
-        val url: String = "https://google.com",
-        val title: String = "New Tab",
-        val favicon: Bitmap? = null,
-        val thumbnail: Bitmap? = null // Snapshot for the switcher
+            val id: String = java.util.UUID.randomUUID().toString(),
+            val url: String = "https://google.com",
+            val title: String = "New Tab",
+            val favicon: Bitmap? = null,
+            val thumbnail: Bitmap? = null // Snapshot for the switcher
     )
 
     private val _tabs = androidx.compose.runtime.mutableStateListOf<BrowserTab>()
@@ -59,11 +57,6 @@ class WebViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
 
-    init {
-        // Create initial tab
-        createNewTab()
-    }
-
     fun createNewTab(url: String = "https://google.com") {
         val newTab = BrowserTab(url = url)
         _tabs.add(newTab)
@@ -86,8 +79,6 @@ class WebViewModel(application: Application) : AndroidViewModel(application) {
                 switchToTab(_tabs[newIndex].id, captureThumbnail = false)
             } else {
                 _activeTabId.value = null
-                // Optionally create a new tab if all are closed
-                createNewTab()
             }
         }
     }
@@ -169,27 +160,31 @@ class WebViewModel(application: Application) : AndroidViewModel(application) {
     fun getOrCreateWebViewForTab(tabId: String, context: android.content.Context): WebView {
         return webViewPool.getOrPut(tabId) {
             val tab = _tabs.find { it.id == tabId }
-            BackgroundWebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.loadWithOverviewMode = true
-                settings.useWideViewPort = true
-                settings.allowFileAccess = true
-                settings.userAgentString =
-                        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
+            BackgroundWebView(context)
+                    .apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.loadWithOverviewMode = true
+                        settings.useWideViewPort = true
+                        settings.allowFileAccess = true
+                        settings.userAgentString =
+                                "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
 
-                addJavascriptInterface(WebPlaybackInterface(context), "Android")
-                webViewClient = customWebViewClient
-                webChromeClient = customWebChromeClient
-            }.also { webView ->
-                tab?.let {
-                    // Only load the URL if it's not the default "about:blank" or if it hasn't been loaded before.
-                    // This prevents re-loading on configuration changes if the webview is re-attached.
-                    if (webView.url == null || webView.url == "about:blank") {
-                        webView.loadUrl(it.url)
+                        addJavascriptInterface(WebPlaybackInterface(context), "Android")
+                        webViewClient = customWebViewClient
+                        webChromeClient = customWebChromeClient
                     }
-                }
-            }
+                    .also { webView ->
+                        tab?.let {
+                            // Only load the URL if it's not the default "about:blank" or if it
+                            // hasn't been loaded before.
+                            // This prevents re-loading on configuration changes if the webview is
+                            // re-attached.
+                            if (webView.url == null || webView.url == "about:blank") {
+                                webView.loadUrl(it.url)
+                            }
+                        }
+                    }
         }
     }
 
